@@ -1,0 +1,110 @@
+openapi: 3.0.0
+info:
+  title: MacWorld Logistics
+  version: 1.0.0
+servers:
+  - url: http://localhost:8082/
+    description: Development server
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+paths:
+  /users/register:
+    post:
+      summary: Register A User.
+      description: Provide Your Details
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                username:
+                  type: string
+                phonenumber:
+                  type: string
+                companyname:
+                  type: string  
+                companyaddress:
+                  type: string 
+                country:
+                  type: string
+                city:
+                  type: string
+                city:
+                  type: string 
+      responses:
+        "201":
+          description: Created
+        "403":
+          description: Forbidden
+        "400":
+          description: Bad Request
+        "401":
+          description: Unauthorized
+        "500":
+          description: Internal Server Error
+  /users/login:
+    post:
+      summary: Login with User Credential.
+      description: Provide Your Details
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "201":
+          description: Created
+        "403":
+          description: Forbidden
+        "400":
+          description: Bad Request
+        "401":
+          description: Unauthorized
+        "500":
+          description: Internal Server Error
+  /users/revive:
+    post:
+      summary: Revive Token.
+      description: Provide Your Refresh Token
+      security:
+        - bearerAuth: []
+      tags:
+        - Users
+      responses:
+        "401":
+          description: Unauthorized
+        "500":
+          description: Internal Server Error
+  /users/logout:
+    post:
+      summary: Logout
+      description: Removes Your Refresh Token
+      security:
+        - bearerAuth: []
+      tags:
+        - Users
+      responses:
+        "200":
+          description: Success
+        "500":
+          description: Internal Server Error
