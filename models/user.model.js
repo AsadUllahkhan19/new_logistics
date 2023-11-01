@@ -26,13 +26,14 @@ const userSchema = new mongoose.Schema({
   country: { type: String, required: true },
   city: { type: String, required: true },
   vat_certificate: { type: Object },
- trade_certificate:{type:Object},
+  trade_certificate:{type:Object},
   isVerified: { type: Boolean, default: false },
   refreshToken: {type: String, required : false,default : null},
   verifyToken: { type: String,default : null },
   createdAt: {type : Date, default : Date.now},
   updatedAt: {type : Date,default : null},
-  deletedAt: {type : Date,default : null}
+  deletedAt: {type : Date,default : null},
+  cust_stripeId:{type:String,default:null},
 });
 module.exports =  mongoose.model("user", userSchema);
 // ejs

@@ -1,12 +1,7 @@
 const mongoose=require("mongoose")
 
 const expressimportDHLSchema = new mongoose.Schema({
-    weight:{type:Number,required:true},
-    value:[
-        {countryName:String,
-        price:Number,
-    }
-    ]
+    prices: { type: [[Number]], required: true },
   });
   
   module.exports = mongoose.model("airExpressImportDHL", expressimportDHLSchema);

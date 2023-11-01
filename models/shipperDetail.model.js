@@ -10,7 +10,7 @@ const shipperSchema = new mongoose.Schema({
     sen_phoneNumber:{type:String,required:true},
     sen_districtArea:{type:String},
     sen_buildingName:{type:String},
-    sen_nearestLandmark:{type:String}
+    sen_nearestLandmark:{type:String},
 },{collection:"shipperDetail"})
 
 module.exports= mongoose.model("shipperDetail",shipperSchema)

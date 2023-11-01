@@ -6,9 +6,11 @@ const { emailSend } = require("../services/emailService");
 const crypto = require("crypto");
 const mongoose = require("mongoose");
 const { ObjectId } = require("mongodb");
-const bcrypt = require('bcryptjs'); // Import bcryptjs
+const bcrypt = require("bcryptjs"); // Import bcryptjs
 const jwt = require("jsonwebtoken");
 const hashedPassword = require("../services/passwordGenerator");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_TEST);
+
 const registerUser = async (req, res, next) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -37,24 +39,30 @@ const registerUser = async (req, res, next) => {
       throw format(commonMessages.emailExist, 403);
     }
 
-    const userData = await userModel.create(
-      [
-        {
-          email,
-          username,
-          password: await hashedPassword(password),
-          phonenumber,
-          companyname,
-          companyaddress,
-          country,
-          city,
-          vat_certificate,
-          trade_certificate,
-          verifyToken,
-        },
-      ],
-      options
+    const Customerss = await stripe.customers.create({
+      name: username,
+      email: email,
+      phone: phonenumber,
+    });
+
+    const userData = new userModel(
+      {
+        email,
+        username,
+        password: await hashedPassword(password),
+        phonenumber,
+        companyname,
+        companyaddress,
+        country,
+        city,
+        vat_certificate,
+        trade_certificate,
+        verifyToken,
+        cust_stripeId: Customerss.id,
+      }
+      // options
     );
+    const newUser = await userData.save();
     console.log(userData);
     const profileData = await profileModel.create(
       [
@@ -68,16 +76,42 @@ const registerUser = async (req, res, next) => {
           city,
           vat_certificate,
           trade_certificate,
-          userId: userData[0]._id.toString(),
+          userId: newUser._id.toString(),
         },
       ],
       options
     );
     await emailSend(email, verifyToken);
+    // const customer = await createStripeCustomer({username,email,phonenumber});
+    // console.log(customer);
+    // async function createStripeCustomer({username,email,phonenumber}) {
+    //   return new Promise(async (resolve, reject) => {
+    //     try {
+    //       const Customer = await stripe.customers.create({
+    //         name: username,
+    //         email:email,
+    //         phone:phonenumber,
+    //       });
+
+    //       resolve(Customer);
+    //     } catch (err) {
+    //       console.log(err);
+    //       reject(err);
+    //     }
+    //   });
+    // }
+    // console.log(userData[0]._id,customer.id)
+    try {
+      // const await userModel.findByIdAndUpdate(userData[0]._id,
+      // })
+      console.log("suucessful");
+      return res.send({ message: "success", data: userData });
+    } catch (error) {
+      console.log(error);
+    }
+
     await session.commitTransaction();
-    res.status(201).json({
-      message: commonMessages.userCreated,
-    });
+    return res.status(201).json({});
   } catch (error) {
     console.log("k");
     await session.abortTransaction();
@@ -118,37 +152,58 @@ const loginUser = async (req, res, next) => {
   session.startTransaction();
   try {
     const options = { upsert: false, session, new: true };
-    const { email, password } = req.body;
+    let { email, password } = req.body;
     const User = await userModel.findOne({ email: email });
 
     if (User) {
       const checkPassword = await bcrypt.compare(password, User.password);
       if (checkPassword) {
-        if (User.isVerified) {
-          const accessToken = await jwt.sign(
-            { id: User._id, name: User.name },
-            process.env.JWT_SECRET,
-            { expiresIn: "1h" }
-          );
-          const refreshToken = await jwt.sign(
-            { id: User._id, name: User.name },
-            process.env.REFRESH_TOKEN,
-            { expiresIn: "90 days" }
-          );
-          await userModel.updateOne(
-            { _id: User._id },
-            { $set: { refreshToken: refreshToken } },
-            options
-          );
-          await session.commitTransaction();
-          res.json({
+        // if (User.isVerified) {
+        //   const accessToken = await jwt.sign(
+        //     { id: User._id, name: User.name },
+        //     process.env.JWT_SECRET,
+        //     { expiresIn: "1h" }
+        //   );
+        //   const refreshToken = await jwt.sign(
+        //     { id: User._id, name: User.name },
+        //     process.env.REFRESH_TOKEN,
+        //     { expiresIn: "90 days" }
+        //   );
+        //   await userModel.updateOne(
+        //     { _id: User._id },
+        //     { $set: { refreshToken: refreshToken } },
+        //     options
+        //   );
+        //   await session.commitTransaction();
+        //   res.json({
+        //     userId: User._id,
+        //     accessToken,
+        //     refreshToken,
+        //   });
+        // } else {
+        //   throw format(commonMessages.unverified, 401);
+        // }
+        const token = jwt.sign({ userId: User._id }, process.env.JWT_SECRET, {
+          expiresIn: "1h",
+        });
+        res
+          .json({
+            token: token,
             userId: User._id,
-            accessToken,
-            refreshToken,
-          });
-        } else {
-          throw format(commonMessages.unverified, 401);
-        }
+            customer_id: User.cust_stripeId,
+            credentials: User,
+          })
+          .status(200);
+        console.log(token);
+        // const token = jwt.sign({ userId: User._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        res
+          .json({
+            token: token,
+            credentials: User,
+            customer_id: User.cust_stripeId,
+          })
+          .status(200);
+        console.log(token);
       } else {
         throw format(commonMessages.wrongCredential, 401);
       }
@@ -167,20 +222,20 @@ const reviveToken = async (req, res, next) => {
   try {
     const header = req.headers["authorization"];
     const token = header && header.split(" ")[1];
-    console.log(token)
+    console.log(token);
     if (!token) {
       return res.status(401).json({ msg: commonMessages.tokenNotFound });
     }
     const verified = jwt.verify(token, process.env.REFRESH_TOKEN);
-    console.log("sdsd",verified)
+    console.log("sdsd", verified);
     const accessToken = await jwt.sign(
       { id: verified._id, name: verified.name },
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
     );
     const user = await userModel.findById(verified.id);
-    console.log(user)
-    console.log(verified.name)
+    console.log(user);
+    console.log(verified.name);
     res.json({
       user: user,
       accessToken,
@@ -193,17 +248,18 @@ const reviveToken = async (req, res, next) => {
 
 const getUser = async (req, res) => {
   try {
-    const user = await userModel.findById(req.user._id);
+    const { id } = req.params;
+    const user = await userModel.findById(id);
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: "User not found" });
     }
 
     res.json({
       user: user,
     });
   } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
